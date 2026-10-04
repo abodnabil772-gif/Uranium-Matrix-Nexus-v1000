@@ -29,18 +29,21 @@ jobs:
         cmdline-tools-version: "latest"
         packages: "platforms;android-33 build-tools;33.0.2"
 
+    - name: Setup Gradle 8.7
+      uses: gradle/actions/setup-gradle@v3
+      with:
+        gradle-version: 8.7
+
     - name: Generate Android Project & Build APK
       run: |
-        echo "📂 فحص مجلد المشروع:"
-        ls -la
+        echo "📂 تنظيف وفحص مجلد المشروع:"
+        rm -rf android_project
         
-        # إنشاء هيكل مشروع أندرويد كامل من الصفر
         mkdir -p android_project/app/src/main/assets/www
         mkdir -p android_project/app/src/main/res/values
         mkdir -p android_project/app/src/main/res/mipmap-hdpi
         mkdir -p android_project/app/src/main/java/com/uranium/matrix/nexus
         
-        # نسخ ملفات الويب
         if [ -f "app.js" ]; then
           cp app.js android_project/app/src/main/assets/www/
         fi
@@ -49,7 +52,6 @@ jobs:
         fi
         cp *.html android_project/app/src/main/assets/www/ 2>/dev/null || echo "لا توجد ملفات HTML"
         
-        # إنشاء ملف index.html بسيط إذا لم يكن موجوداً
         if [ ! -f "android_project/app/src/main/assets/www/index.html" ]; then
           cat << 'EOF' > android_project/app/src/main/assets/www/index.html
         <!DOCTYPE html>
@@ -57,14 +59,13 @@ jobs:
         <head><meta charset="UTF-8"><title>Uranium Matrix Nexus</title></head>
         <body style="background:#000;color:#0f0;font-family:monospace;padding:20px;">
           <h1>Uranium Matrix Nexus v1000</h1>
-          <p>جاري التحميل...</p>
+          <p>جاري التشغيل...</p>
           <script src="app.js"></script>
         </body>
         </html>
         EOF
         fi
         
-        # ملفات الموارد (Styles & Colors)
         cat << 'EOF' > android_project/app/src/main/res/values/styles.xml
         <?xml version="1.0" encoding="utf-8"?>
         <resources>
@@ -72,10 +73,9 @@ jobs:
         </resources>
         EOF
         
-        # أيقونة بسيطة (ملف فارغ، سيتم استخدام الأيقونة الافتراضية)
         touch android_project/app/src/main/res/mipmap-hdpi/ic_launcher.png
         
-        # ملف build.gradle الرئيسي
+        # ملف build.gradle الرئيسي - تم تحديث AGP إلى 8.5.2
         cat << 'EOF' > android_project/build.gradle
         buildscript {
             repositories {
@@ -83,7 +83,7 @@ jobs:
                 mavenCentral()
             }
             dependencies {
-                classpath 'com.android.tools.build:gradle:8.1.0'
+                classpath 'com.android.tools.build:gradle:8.5.2'
             }
         }
         allprojects {
@@ -94,13 +94,11 @@ jobs:
         }
         EOF
 
-        # ملف settings.gradle
         cat << 'EOF' > android_project/settings.gradle
         rootProject.name = "UraniumNexus"
         include ':app'
         EOF
 
-        # ملف build.gradle للتطبيق
         cat << 'EOF' > android_project/app/build.gradle
         plugins {
             id 'com.android.application'
@@ -127,7 +125,6 @@ jobs:
         }
         EOF
 
-        # ملف AndroidManifest.xml (مصحح لاستخدام الثيم الصحيح)
         cat << 'EOF' > android_project/app/src/main/AndroidManifest.xml
         <manifest xmlns:android="http://schemas.android.com/apk/res/android"
             package="com.uranium.matrix.nexus">
@@ -149,7 +146,6 @@ jobs:
         </manifest>
         EOF
 
-        # MainActivity.java
         cat << 'EOF' > android_project/app/src/main/java/com/uranium/matrix/nexus/MainActivity.java
         package com.uranium.matrix.nexus;
         import android.app.Activity;
@@ -169,9 +165,8 @@ jobs:
         }
         EOF
 
-        # إنشاء Gradle Wrapper وبناء الـ APK
         cd android_project
-        gradle wrapper --gradle-version 8.2
+        gradle wrapper --gradle-version 8.7 --distribution-type bin
         chmod +x gradlew
         ./gradlew assembleRelease --no-daemon
 
