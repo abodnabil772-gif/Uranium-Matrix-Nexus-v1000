@@ -25,21 +25,17 @@ jobs:
 
     - name: Setup Compatible Gradle
       uses: gradle/actions/setup-gradle@v3
-      with:
-        gradle-version: '8.5'
 
     - name: Build Release APK
       run: |
-        # التحقق من مكان وجود مجلد المشروع أو الانتقال المباشر له
+        # البحث عن ملف gradlew أو الدخول لمجلد المشروع تلقائياً
         if [ -d "android" ]; then
           cd android
+        elif [ -d "UraniumMatrixNexus" ]; then
+          cd UraniumMatrixNexus
         fi
         
-        # التأكد من وجود صلاحيات التنفيذ أو توليد الـ wrapper إذا لزم الأمر
-        if [ ! -f "gradlew" ]; then
-          gradle wrapper --gradle-version 8.5
-        fi
-        
+        # التأكد من وجود ملف gradlew وصلاحيات التنفيذ
         chmod +x gradlew
         ./gradlew assembleRelease
 
