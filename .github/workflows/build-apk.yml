@@ -23,14 +23,20 @@ jobs:
         cmdline-tools-version: "latest"
         packages: "platforms;android-33 build-tools;33.0.2"
 
-    - name: Grant execute permission for gradlew
-      run: |
-        cd android
-        chmod +x gradlew
+    - name: Setup Compatible Gradle
+      uses: gradle/actions/setup-gradle@v3
+      with:
+        gradle-version: '8.5'
 
-    - name: Build Nexus Release APK with ProGuard Obfuscation
+    - name: Generate Wrapper & Build Release APK
       run: |
         cd android
+        # توليد ملف gradlew تلقائياً إذا لم يكن موجوداً وبإصدار متوافق
+        if [ ! -f "gradlew" ]; then
+          echo "Generating Gradle wrapper..."
+          gradle wrapper --gradle-version 8.5
+        fi
+        chmod +x gradlew
         ./gradlew assembleRelease
 
     - name: Upload Nexus Artifact
