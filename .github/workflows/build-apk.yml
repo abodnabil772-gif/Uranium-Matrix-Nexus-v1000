@@ -27,7 +27,7 @@ jobs:
       uses: android-actions/setup-android@v3
       with:
         cmdline-tools-version: "latest"
-        packages: "platforms;android-33 build-tools;33.0.2"
+        packages: "platforms;android-34 build-tools;34.0.0"
 
     - name: Setup Gradle 8.7
       uses: gradle/actions/setup-gradle@v3
@@ -36,27 +36,24 @@ jobs:
 
     - name: Generate Android Project & Build APK
       run: |
-        echo "📂 تنظيف وفحص مجلد المشروع:"
+        echo "📂 تنظيف وإنشاء مشروع أندرويد جديد..."
         rm -rf android_project
         
         mkdir -p android_project/app/src/main/assets/www
         mkdir -p android_project/app/src/main/res/values
-        mkdir -p android_project/app/src/main/res/mipmap-hdpi
         mkdir -p android_project/app/src/main/java/com/uranium/matrix/nexus
         
-        if [ -f "app.js" ]; then
-          cp app.js android_project/app/src/main/assets/www/
-        fi
-        if [ -f "package.json" ]; then
-          cp package.json android_project/app/src/main/assets/www/
-        fi
+        # نسخ ملفات الويب
+        if [ -f "app.js" ]; then cp app.js android_project/app/src/main/assets/www/; fi
+        if [ -f "package.json" ]; then cp package.json android_project/app/src/main/assets/www/; fi
         cp *.html android_project/app/src/main/assets/www/ 2>/dev/null || echo "لا توجد ملفات HTML"
         
+        # إنشاء index.html افتراضي إذا لم يكن موجوداً
         if [ ! -f "android_project/app/src/main/assets/www/index.html" ]; then
           cat << 'EOF' > android_project/app/src/main/assets/www/index.html
         <!DOCTYPE html>
         <html>
-        <head><meta charset="UTF-8"><title>Uranium Matrix Nexus</title></head>
+        <head><meta charset="UTF-8"><title>Uranium Nexus</title></head>
         <body style="background:#000;color:#0f0;font-family:monospace;padding:20px;">
           <h1>Uranium Matrix Nexus v1000</h1>
           <p>جاري التشغيل...</p>
@@ -66,17 +63,14 @@ jobs:
         EOF
         fi
         
-        cat << 'EOF' > android_project/app/src/main/res/values/styles.xml
-        <?xml version="1.0" encoding="utf-8"?>
+        # ملف strings.xml (اسم التطبيق)
+        cat << 'EOF' > android_project/app/src/main/res/values/strings.xml
         <resources>
-            <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar" />
+            <string name="app_name">Uranium Matrix Nexus</string>
         </resources>
         EOF
         
-        # ✅ الحل: إنشاء أيقونة PNG حقيقية (16x16 بكسل أزرق داكن)
-        # هذه الصورة مضمونة العمل ولن تسبب خطأ AAPT
-        echo "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAAjSURBVDhPYxgFWAAD4zT4PwMDAwMj0wEwMDAwME4DDAwMDAwAAB8uA/8f5x0MAAAAAElFTkSuQmCC" | base64 -d > android_project/app/src/main/res/mipmap-hdpi/ic_launcher.png
-        
+        # ملف build.gradle الرئيسي
         cat << 'EOF' > android_project/build.gradle
         buildscript {
             repositories {
@@ -95,22 +89,24 @@ jobs:
         }
         EOF
 
+        # ملف settings.gradle
         cat << 'EOF' > android_project/settings.gradle
         rootProject.name = "UraniumNexus"
         include ':app'
         EOF
 
+        # ملف build.gradle الخاص بالتطبيق
         cat << 'EOF' > android_project/app/build.gradle
         plugins {
             id 'com.android.application'
         }
         android {
             namespace 'com.uranium.matrix.nexus'
-            compileSdk 33
+            compileSdk 34
             defaultConfig {
                 applicationId "com.uranium.matrix.nexus"
                 minSdk 21
-                targetSdk 33
+                targetSdk 34
                 versionCode 1000
                 versionName "1.0.0"
             }
@@ -126,16 +122,16 @@ jobs:
         }
         EOF
 
+        # ملف AndroidManifest.xml (بدون أيقونة مخصصة)
         cat << 'EOF' > android_project/app/src/main/AndroidManifest.xml
         <manifest xmlns:android="http://schemas.android.com/apk/res/android"
             package="com.uranium.matrix.nexus">
             <uses-permission android:name="android.permission.INTERNET" />
             <application
                 android:allowBackup="true"
-                android:icon="@mipmap/ic_launcher"
-                android:label="Uranium Nexus"
+                android:label="@string/app_name"
                 android:supportsRtl="true"
-                android:theme="@style/AppTheme">
+                android:theme="@android:style/Theme.Material.NoActionBar">
                 <activity
                     android:name=".MainActivity"
                     android:exported="true">
@@ -148,6 +144,7 @@ jobs:
         </manifest>
         EOF
 
+        # ملف MainActivity.java
         cat << 'EOF' > android_project/app/src/main/java/com/uranium/matrix/nexus/MainActivity.java
         package com.uranium.matrix.nexus;
         import android.app.Activity;
@@ -161,6 +158,7 @@ jobs:
                 WebView webView = new WebView(this);
                 WebSettings webSettings = webView.getSettings();
                 webSettings.setJavaScriptEnabled(true);
+                webSettings.setDomStorageEnabled(true);
                 webView.loadUrl("file:///android_asset/www/index.html");
                 setContentView(webView);
             }
