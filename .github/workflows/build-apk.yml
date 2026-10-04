@@ -29,43 +29,154 @@ jobs:
         cmdline-tools-version: "latest"
         packages: "platforms;android-33 build-tools;33.0.2"
 
-    - name: Setup Compatible Gradle
-      uses: gradle/actions/setup-gradle@v3
-
-    - name: Initialize Android Project & Build APK
+    - name: Generate Android Project & Build APK
       run: |
-        echo "📂 فحص محتويات المستودع:"
+        echo "📂 فحص مجلد المشروع:"
         ls -la
         
-        # إذا لم يكن مجلد android يحتوي على gradlew، سنقوم بإنشاء مشروع أندرويد قياسي أو استخدام Cordova إذا وجد package.json
+        # إنشاء هيكل مشروع أندرويد كامل من الصفر
+        mkdir -p android_project/app/src/main/assets/www
+        mkdir -p android_project/app/src/main/res/values
+        mkdir -p android_project/app/src/main/res/mipmap-hdpi
+        mkdir -p android_project/app/src/main/java/com/uranium/matrix/nexus
+        
+        # نسخ ملفات الويب
+        if [ -f "app.js" ]; then
+          cp app.js android_project/app/src/main/assets/www/
+        fi
         if [ -f "package.json" ]; then
-          echo "📦 تم اكتشاف مشروع Node.js/Cordova، جاري تثبيت الحزم..."
-          npm install
-          
-          # التحقق من وجود منصة أندرويد أو إضافتها
-          if [ ! -d "android" ]; then
-            npx cordova platform add android || echo "لا تستخدم كوردوا، سنتعامل مع المشروع المباشر"
-          fi
+          cp package.json android_project/app/src/main/assets/www/
+        fi
+        cp *.html android_project/app/src/main/assets/www/ 2>/dev/null || echo "لا توجد ملفات HTML"
+        
+        # إنشاء ملف index.html بسيط إذا لم يكن موجوداً
+        if [ ! -f "android_project/app/src/main/assets/www/index.html" ]; then
+          cat << 'EOF' > android_project/app/src/main/assets/www/index.html
+        <!DOCTYPE html>
+        <html>
+        <head><meta charset="UTF-8"><title>Uranium Matrix Nexus</title></head>
+        <body style="background:#000;color:#0f0;font-family:monospace;padding:20px;">
+          <h1>Uranium Matrix Nexus v1000</h1>
+          <p>جاري التحميل...</p>
+          <script src="app.js"></script>
+        </body>
+        </html>
+        EOF
         fi
         
-        # البحث من جديد عن gradlew بعد التجهيز
-        GRADLEW_PATH=$(find . -name "gradlew" -type f | head -n 1)
+        # ملفات الموارد (Styles & Colors)
+        cat << 'EOF' > android_project/app/src/main/res/values/styles.xml
+        <?xml version="1.0" encoding="utf-8"?>
+        <resources>
+            <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar" />
+        </resources>
+        EOF
         
-        if [ -z "$GRADLEW_PATH" ]; then
-          echo "⚠️ تنبيه: ملف gradlew غير موجود نهائياً، جاري إنشاء Gradle Wrapper افتراضي..."
-          gradle wrapper --gradle-version 8.5
-          GRADLEW_PATH=$(find . -name "gradlew" -type f | head -n 1)
-        fi
+        # أيقونة بسيطة (ملف فارغ، سيتم استخدام الأيقونة الافتراضية)
+        touch android_project/app/src/main/res/mipmap-hdpi/ic_launcher.png
         
-        PROJECT_DIR=$(dirname "$GRADLEW_PATH")
-        echo "✅ الانتقال إلى مجلد العمل: $PROJECT_DIR"
-        cd "$PROJECT_DIR"
-        
+        # ملف build.gradle الرئيسي
+        cat << 'EOF' > android_project/build.gradle
+        buildscript {
+            repositories {
+                google()
+                mavenCentral()
+            }
+            dependencies {
+                classpath 'com.android.tools.build:gradle:8.1.0'
+            }
+        }
+        allprojects {
+            repositories {
+                google()
+                mavenCentral()
+            }
+        }
+        EOF
+
+        # ملف settings.gradle
+        cat << 'EOF' > android_project/settings.gradle
+        rootProject.name = "UraniumNexus"
+        include ':app'
+        EOF
+
+        # ملف build.gradle للتطبيق
+        cat << 'EOF' > android_project/app/build.gradle
+        plugins {
+            id 'com.android.application'
+        }
+        android {
+            namespace 'com.uranium.matrix.nexus'
+            compileSdk 33
+            defaultConfig {
+                applicationId "com.uranium.matrix.nexus"
+                minSdk 21
+                targetSdk 33
+                versionCode 1000
+                versionName "1.0.0"
+            }
+            buildTypes {
+                release {
+                    minifyEnabled false
+                }
+            }
+            compileOptions {
+                sourceCompatibility JavaVersion.VERSION_17
+                targetCompatibility JavaVersion.VERSION_17
+            }
+        }
+        EOF
+
+        # ملف AndroidManifest.xml (مصحح لاستخدام الثيم الصحيح)
+        cat << 'EOF' > android_project/app/src/main/AndroidManifest.xml
+        <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+            package="com.uranium.matrix.nexus">
+            <uses-permission android:name="android.permission.INTERNET" />
+            <application
+                android:allowBackup="true"
+                android:label="Uranium Nexus"
+                android:supportsRtl="true"
+                android:theme="@style/AppTheme">
+                <activity
+                    android:name=".MainActivity"
+                    android:exported="true">
+                    <intent-filter>
+                        <action android:name="android.intent.action.MAIN" />
+                        <category android:name="android.intent.category.LAUNCHER" />
+                    </intent-filter>
+                </activity>
+            </application>
+        </manifest>
+        EOF
+
+        # MainActivity.java
+        cat << 'EOF' > android_project/app/src/main/java/com/uranium/matrix/nexus/MainActivity.java
+        package com.uranium.matrix.nexus;
+        import android.app.Activity;
+        import android.os.Bundle;
+        import android.webkit.WebView;
+        import android.webkit.WebSettings;
+        public class MainActivity extends Activity {
+            @Override
+            protected void onCreate(Bundle savedInstanceState) {
+                super.onCreate(savedInstanceState);
+                WebView webView = new WebView(this);
+                WebSettings webSettings = webView.getSettings();
+                webSettings.setJavaScriptEnabled(true);
+                webView.loadUrl("file:///android_asset/www/index.html");
+                setContentView(webView);
+            }
+        }
+        EOF
+
+        # إنشاء Gradle Wrapper وبناء الـ APK
+        cd android_project
+        gradle wrapper --gradle-version 8.2
         chmod +x gradlew
-        ./gradlew assembleRelease
+        ./gradlew assembleRelease --no-daemon
 
     - name: Upload Nexus Artifact
       uses: actions/upload-artifact@v4
       with:
         name: Uranium-Matrix-Nexus-v1000-APK
-        path: "**/build/outputs/apk/release/*.apk"
+        path: "android_project/app/build/outputs/apk/release/*.apk"
