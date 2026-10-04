@@ -3,6 +3,7 @@ name: Build Uranium Matrix Nexus v1000 APK
 on:
   push:
     branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -28,14 +29,23 @@ jobs:
 
     - name: Build Release APK
       run: |
-        # البحث عن ملف gradlew أو الدخول لمجلد المشروع تلقائياً
-        if [ -d "android" ]; then
-          cd android
-        elif [ -d "UraniumMatrixNexus" ]; then
-          cd UraniumMatrixNexus
+        # طباعة محتويات المستودع للتحقق من المسارات
+        echo "📂 محتويات مجلد الجذر الحالي:"
+        ls -la
+        
+        # البحث عن ملف gradlew والدخول إلى مجلده مباشرة
+        GRADLEW_PATH=$(find . -name "gradlew" -type f | head -n 1)
+        
+        if [ -z "$GRADLEW_PATH" ]; then
+          echo "❌ خطأ: لم يتم العثور على ملف gradlew في المستودع بالكامل!"
+          exit 1
         fi
         
-        # التأكد من وجود ملف gradlew وصلاحيات التنفيذ
+        PROJECT_DIR=$(dirname "$GRADLEW_PATH")
+        echo "✅ تم العثور على ملف gradlew داخل المجلد: $PROJECT_DIR"
+        
+        # الانتقال المباشر لمجلد المشروع وتوليد ملف APK
+        cd "$PROJECT_DIR"
         chmod +x gradlew
         ./gradlew assembleRelease
 
@@ -43,4 +53,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Uranium-Matrix-Nexus-v1000-APK
-        path: "**/build/outputs/apk/release/app-release-unsigned.apk"
+        path: "**/build/outputs/apk/release/*.apk"
