@@ -18,6 +18,11 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
       with:
@@ -27,25 +32,35 @@ jobs:
     - name: Setup Compatible Gradle
       uses: gradle/actions/setup-gradle@v3
 
-    - name: Build Release APK
+    - name: Initialize Android Project & Build APK
       run: |
-        # طباعة محتويات المستودع للتحقق من المسارات
-        echo "📂 محتويات مجلد الجذر الحالي:"
+        echo "📂 فحص محتويات المستودع:"
         ls -la
         
-        # البحث عن ملف gradlew والدخول إلى مجلده مباشرة
+        # إذا لم يكن مجلد android يحتوي على gradlew، سنقوم بإنشاء مشروع أندرويد قياسي أو استخدام Cordova إذا وجد package.json
+        if [ -f "package.json" ]; then
+          echo "📦 تم اكتشاف مشروع Node.js/Cordova، جاري تثبيت الحزم..."
+          npm install
+          
+          # التحقق من وجود منصة أندرويد أو إضافتها
+          if [ ! -d "android" ]; then
+            npx cordova platform add android || echo "لا تستخدم كوردوا، سنتعامل مع المشروع المباشر"
+          fi
+        fi
+        
+        # البحث من جديد عن gradlew بعد التجهيز
         GRADLEW_PATH=$(find . -name "gradlew" -type f | head -n 1)
         
         if [ -z "$GRADLEW_PATH" ]; then
-          echo "❌ خطأ: لم يتم العثور على ملف gradlew في المستودع بالكامل!"
-          exit 1
+          echo "⚠️ تنبيه: ملف gradlew غير موجود نهائياً، جاري إنشاء Gradle Wrapper افتراضي..."
+          gradle wrapper --gradle-version 8.5
+          GRADLEW_PATH=$(find . -name "gradlew" -type f | head -n 1)
         fi
         
         PROJECT_DIR=$(dirname "$GRADLEW_PATH")
-        echo "✅ تم العثور على ملف gradlew داخل المجلد: $PROJECT_DIR"
-        
-        # الانتقال المباشر لمجلد المشروع وتوليد ملف APK
+        echo "✅ الانتقال إلى مجلد العمل: $PROJECT_DIR"
         cd "$PROJECT_DIR"
+        
         chmod +x gradlew
         ./gradlew assembleRelease
 
