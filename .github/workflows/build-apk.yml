@@ -44,11 +44,16 @@ jobs:
         mkdir -p android_project/app/src/main/java/com/uranium/matrix/nexus
         
         # نسخ ملفات الويب
-        if [ -f "app.js" ]; then cp app.js android_project/app/src/main/assets/www/; fi
+        if [ -f "app.js" ]; then 
+          cp app.js android_project/app/src/main/assets/www/
+          echo "✅ تم نسخ app.js ($(wc -c < app.js) bytes)"
+        else
+          echo "⚠️ ملف app.js غير موجود!"
+        fi
         if [ -f "package.json" ]; then cp package.json android_project/app/src/main/assets/www/; fi
         cp *.html android_project/app/src/main/assets/www/ 2>/dev/null || echo "لا توجد ملفات HTML"
         
-        # إنشاء index.html افتراضي إذا لم يكن موجوداً
+        # إنشاء index.html افتراضي
         if [ ! -f "android_project/app/src/main/assets/www/index.html" ]; then
           cat << 'EOF' > android_project/app/src/main/assets/www/index.html
         <!DOCTYPE html>
@@ -63,14 +68,12 @@ jobs:
         EOF
         fi
         
-        # ملف strings.xml (اسم التطبيق)
         cat << 'EOF' > android_project/app/src/main/res/values/strings.xml
         <resources>
             <string name="app_name">Uranium Matrix Nexus</string>
         </resources>
         EOF
         
-        # ملف build.gradle الرئيسي
         cat << 'EOF' > android_project/build.gradle
         buildscript {
             repositories {
@@ -89,13 +92,11 @@ jobs:
         }
         EOF
 
-        # ملف settings.gradle
         cat << 'EOF' > android_project/settings.gradle
         rootProject.name = "UraniumNexus"
         include ':app'
         EOF
 
-        # ملف build.gradle الخاص بالتطبيق
         cat << 'EOF' > android_project/app/build.gradle
         plugins {
             id 'com.android.application'
@@ -119,10 +120,24 @@ jobs:
                 sourceCompatibility JavaVersion.VERSION_17
                 targetCompatibility JavaVersion.VERSION_17
             }
+            // ✅ إعدادات التوقيع التلقائي
+            signingConfigs {
+                release {
+                    storeFile file('keystore.jks')
+                    storePassword 'uranium123'
+                    keyAlias 'uranium'
+                    keyPassword 'uranium123'
+                }
+            }
+            buildTypes {
+                release {
+                    signingConfig signingConfigs.release
+                    minifyEnabled false
+                }
+            }
         }
         EOF
 
-        # ملف AndroidManifest.xml (بدون أيقونة مخصصة)
         cat << 'EOF' > android_project/app/src/main/AndroidManifest.xml
         <manifest xmlns:android="http://schemas.android.com/apk/res/android"
             package="com.uranium.matrix.nexus">
@@ -144,7 +159,6 @@ jobs:
         </manifest>
         EOF
 
-        # ملف MainActivity.java
         cat << 'EOF' > android_project/app/src/main/java/com/uranium/matrix/nexus/MainActivity.java
         package com.uranium.matrix.nexus;
         import android.app.Activity;
@@ -166,12 +180,25 @@ jobs:
         EOF
 
         cd android_project
+        
+        # ✅ توليد مفتاح التوقيع (Keystore) تلقائياً
+        echo "🔑 جاري توليد مفتاح التوقيع..."
+        keytool -genkey -v -keystore app/keystore.jks -keyalg RSA -keysize 2048 -validity 10000 \
+          -alias uranium -storepass uranium123 -keypass uranium123 \
+          -dname "CN=Uranium, OU=Dev, O=Uranium, L=Sanaa, S=Sanaa, C=YE"
+        
+        # إنشاء ملف gradlew
         gradle wrapper --gradle-version 8.7 --distribution-type bin
         chmod +x gradlew
+        
+        echo "🔨 بدء البناء والتوقيع..."
         ./gradlew assembleRelease --no-daemon --warning-mode=none
+        
+        echo "✅ اكتمل البناء!"
+        ls -la app/build/outputs/apk/release/
 
-    - name: Upload Nexus Artifact
+    - name: Upload Signed APK
       uses: actions/upload-artifact@v4
       with:
-        name: Uranium-Matrix-Nexus-v1000-APK
-        path: "android_project/app/build/outputs/apk/release/*.apk"
+        name: Uranium-Matrix-Nexus-v1000-SIGNED
+        path: android_project/app/build/outputs/apk/release/*.apk
